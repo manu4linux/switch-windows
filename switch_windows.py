@@ -14,37 +14,48 @@ console = Console()
 CONFIG_FILE = Path("config.json")
 LOG_FILE = Path("switch_log.txt")
 
-# Default ignored window names (modifiable via config)
-DEFAULT_IGNORED_KEYWORDS = ["Window Server", "StatusIndicator", "Menubar", "Dock", "Control Center"]
+# Default configuration
+DEFAULT_CONFIG = {
+    "ignored_keywords": ["Window Server", "StatusIndicator", "Menubar", "Dock", "Control Center"],
+    "enable_logging": True
+}
 
 def load_config():
-    """Loads ignored keywords from config.json or uses defaults."""
+    """Loads configuration from config.json or returns defaults."""
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r") as f:
-                config = json.load(f)
-            return config.get("ignored_keywords", DEFAULT_IGNORED_KEYWORDS)
+                return json.load(f)
         except Exception as e:
             console.print(f"[red]Failed to load config.json: {e}[/red]")
-    return DEFAULT_IGNORED_KEYWORDS
+    return DEFAULT_CONFIG  # Fallback to default config
+
+CONFIG = load_config()
 
 def list_active_windows():
-    """Returns a list of unique active application window titles (excluding system-level ones)."""
+    """Returns a list of active application window titles, filtering out ignored ones."""
     titles = gw.getAllTitles()
-    ignored_keywords = load_config()
+    ignored_keywords = CONFIG.get("ignored_keywords", DEFAULT_CONFIG["ignored_keywords"])
     
-    # Remove duplicates and filter invalid/system window titles
-    unique_titles = list(set(title.strip() for title in titles if title.strip() and not any(kw in title for kw in ignored_keywords)))
+    # Remove duplicates and ignored apps
+    seen = set()
+    valid_titles = []
+    for title in titles:
+        title = title.strip()
+        if title and title not in seen and not any(kw in title for kw in ignored_keywords):
+            valid_titles.append(title)
+            seen.add(title)
     
-    return unique_titles
+    return valid_titles
 
-def log_switch(title):
-    """Logs window switch attempts to a file."""
-    with open(LOG_FILE, "a") as f:
-        f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Switched to: {title}\n")
+def log_switch(title, skip_log):
+    """Logs window switch attempts to a file, if logging is enabled."""
+    if not skip_log and CONFIG.get("enable_logging", True):
+        with open(LOG_FILE, "a") as f:
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Switched to: {title}\n")
 
-def activate_window(title):
-    """Attempts to activate a window using AppleScript with fallback."""
+def activate_window(title, skip_log):
+    """Attempts to activate a window using AppleScript with a fallback method."""
     script = f'''
     tell application "System Events"
         set appList to name of every process
@@ -61,15 +72,16 @@ def activate_window(title):
             console.print(f"[yellow]Skipping {title}: Application not running.[/yellow]")
             return False
         console.print(f"[green]Switched to: {title}[/green]")
-        log_switch(title)
+        log_switch(title, skip_log)
         return True
     except subprocess.CalledProcessError:
         console.print(f"[red]Failed to switch to: {title}, trying fallback...[/red]")
         subprocess.run(["open", "-a", title])  # Fallback method
         return False
 
-def switch_between_windows(delay_min, delay_max, cycle_apps):
-    """Continuously switches between unique valid application windows at a random interval."""
+def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
+    """Continuously switches between valid application windows at a random interval."""
+    last_window = None  # Track the last activated window
     while True:
         window_titles = list_active_windows()
 
@@ -83,7 +95,7 @@ def switch_between_windows(delay_min, delay_max, cycle_apps):
             continue
 
         # Display active windows in a table
-        table = Table(title="Active Windows (Unique)", show_header=True, header_style="bold cyan")
+        table = Table(title="Active Windows", show_header=True, header_style="bold cyan")
         table.add_column("Index", justify="right")
         table.add_column("Window Title", style="bold magenta")
         for idx, title in enumerate(window_titles, start=1):
@@ -91,7 +103,13 @@ def switch_between_windows(delay_min, delay_max, cycle_apps):
         console.print(table)
 
         for title in window_titles:
-            activate_window(title)
+            if title == last_window:  # Skip duplicate switches
+                console.print(f"[yellow]Skipping {title} (already switched to last time).[/yellow]")
+                continue
+            
+            activate_window(title, skip_log)
+            last_window = title  # Update last switched window
+
             delay = random.randint(delay_min, delay_max)
             console.print(f"[blue]Pausing for {delay} seconds before switch...[/blue]")
             time.sleep(delay)
@@ -105,8 +123,9 @@ if __name__ == "__main__":
     parser.add_argument("--min-delay", type=int, default=5, help="Minimum delay between switches (seconds)")
     parser.add_argument("--max-delay", type=int, default=20, help="Maximum delay between switches (seconds)")
     parser.add_argument("--apps", nargs="*", help="List of specific apps to cycle through (optional)")
+    parser.add_argument("--skip-log", action="store_true", help="Disable logging for this session")
 
     args = parser.parse_args()
 
     console.print("[bold green]Starting window switcher...[/bold green]")
-    switch_between_windows(args.min_delay, args.max_delay, args.apps)
+    switch_between_windows(args.min_delay, args.max_delay, args.apps, args.skip_log)
