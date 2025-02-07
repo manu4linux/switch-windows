@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from ssl import ALERT_DESCRIPTION_UNSUPPORTED_EXTENSION
 import time
 import random
 from AppKit import NSWorkspace
@@ -30,6 +31,14 @@ def switch_between_windows():
     """Continuously switches between all active windows every 5 seconds with a random delay of up to 120 seconds."""
     while True:
         window_titles = list_active_windows()
+        # Add custom windows to the list
+        # window_titles.append("Notes")  #append
+        # window_titles.append("Ghostty")  #append
+        
+        # # Remove duplicates
+        # window_titles = list(set(window_titles))
+
+         # Filter out empty titles
         
         if not window_titles:
             print("No active windows detected.")
