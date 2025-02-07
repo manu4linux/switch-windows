@@ -50,7 +50,9 @@ def switch_between_windows():
 
         for title in window_titles:
             activate_window(title)
-            time.sleep(5)  # Switch every 5s
+            delay = random.randint(5, 20)
+            print(f"\nPausing for {delay} seconds before switch...")
+            time.sleep(delay)
 
         delay = random.randint(0, 120)
         print(f"\nPausing for {delay} seconds before restarting...")
