@@ -69,15 +69,29 @@ def log_switch(title, skip_log):
 def activate_window(title, skip_log):
     """Attempts to activate a window using AppleScript with a fallback method."""
     script = f'''
+    tell application "{title}"
+        activate
+    end tell
     tell application "System Events"
-        set appList to name of every process
-        if "{title}" is in appList then
-            tell application "{title}" to activate
-        else
-            return "App Not Found"
-        end if
+        tell process "{title}"
+            set frontmost to true
+        end tell
     end tell
     '''
+    # script = f'''
+    # tell application "System Events"
+    #     set appList to name of every process
+    #     if "{title}" is in appList then
+    #         tell application "{title}" to activate
+    #         tell process "{title}"
+    #             set frontmost to true
+    #         end tell
+    #     else
+    #         return "App Not Found"
+    #     end if
+    # end tell
+    # '''
+
     try:
         result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
         if "App Not Found" in result.stdout:
@@ -129,14 +143,14 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
             console.print(f"[blue]Pausing for {delay} seconds before switch...[/blue]")
             time.sleep(delay)
 
-        delay = random.randint(30, 120)
+        delay = random.randint(10, 60)
         console.print(f"[green]\nPausing for {delay} seconds before restarting...[/green]")
         time.sleep(delay)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cycle through active windows.")
     parser.add_argument("--min-delay", type=int, default=5, help="Minimum delay between switches (seconds)")
-    parser.add_argument("--max-delay", type=int, default=20, help="Maximum delay between switches (seconds)")
+    parser.add_argument("--max-delay", type=int, default=10, help="Maximum delay between switches (seconds)")
     parser.add_argument("--apps", nargs="*", help="List of specific apps to cycle through (optional)")
     parser.add_argument("--skip-log", action="store_true", help="Disable logging for this session")
 
