@@ -4,6 +4,7 @@ import pygetwindow as gw
 import subprocess
 import argparse
 import json
+import psutil  # Import psutil for CPU usage
 from datetime import datetime
 from pathlib import Path
 from rich.console import Console
@@ -32,21 +33,32 @@ def load_config():
 
 CONFIG = load_config()
 
+def get_cpu_usage(process_name):
+    """Returns the CPU usage percentage of a given process."""
+    for proc in psutil.process_iter(attrs=['name', 'cpu_percent']):
+        try:
+            if proc.info['name'] == process_name:
+                return proc.info['cpu_percent']  # Get the CPU usage
+        except psutil.NoSuchProcess:
+            pass
+    return 0.0  # Return 0 if process not found
+
 def list_active_windows():
-    """Returns a list of active application window titles, filtering out ignored ones."""
+    """Returns a dictionary of active application window titles with CPU usage."""
     titles = gw.getAllTitles()
     ignored_keywords = CONFIG.get("ignored_keywords", DEFAULT_CONFIG["ignored_keywords"])
     
-    # Remove duplicates and ignored apps
     seen = set()
-    valid_titles = []
+    valid_windows = {}
+
     for title in titles:
         title = title.strip()
         if title and title not in seen and not any(kw in title for kw in ignored_keywords):
-            valid_titles.append(title)
+            cpu_usage = get_cpu_usage(title)
+            valid_windows[title] = cpu_usage
             seen.add(title)
     
-    return valid_titles
+    return valid_windows
 
 def log_switch(title, skip_log):
     """Logs window switch attempts to a file, if logging is enabled."""
@@ -83,13 +95,13 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
     """Continuously switches between valid application windows at a random interval."""
     last_window = None  # Track the last activated window
     while True:
-        window_titles = list_active_windows()
+        window_data = list_active_windows()
 
         if cycle_apps:
             # If specific apps are provided, filter only those
-            window_titles = [title for title in window_titles if title in cycle_apps]
+            window_data = {title: cpu for title, cpu in window_data.items() if title in cycle_apps}
 
-        if not window_titles:
+        if not window_data:
             console.print("[bold red]No valid active windows found.[/bold red]")
             time.sleep(10)
             continue
@@ -98,11 +110,14 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
         table = Table(title="Active Windows", show_header=True, header_style="bold cyan")
         table.add_column("Index", justify="right")
         table.add_column("Window Title", style="bold magenta")
-        for idx, title in enumerate(window_titles, start=1):
-            table.add_row(str(idx), title)
+        table.add_column("CPU Usage (%)", style="bold yellow")
+
+        for idx, (title, cpu_usage) in enumerate(window_data.items(), start=1):
+            table.add_row(str(idx), title, f"{cpu_usage:.2f}%")
+
         console.print(table)
 
-        for title in window_titles:
+        for title in window_data.keys():
             if title == last_window:  # Skip duplicate switches
                 console.print(f"[yellow]Skipping {title} (already switched to last time).[/yellow]")
                 continue
