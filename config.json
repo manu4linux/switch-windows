@@ -1,4 +1,4 @@
 {
-    "ignored_keywords": ["iboss macOS Cloud Connector", "Microsoft Defender", "BIG-IP Edge Client", "Jamf Connect"],
+    "ignored_keywords": ["iboss macOS Cloud Connector", "Microsoft Defender", "BIG-IP Edge Client", "Window Server Menubar"],
     "enable_logging": false
 }
