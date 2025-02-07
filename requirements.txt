@@ -3,4 +3,4 @@ pygetwindow>=0.0.9
 pyobjc
 rich>=13.9.0
 psutil>=6.1
-# 
+pip >=25.0
