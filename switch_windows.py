@@ -4,15 +4,14 @@ import pygetwindow as gw
 import subprocess
 import argparse
 import json
-import psutil  # Import psutil for CPU usage
+import psutil
+import objc
 from datetime import datetime
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
-from pynput import mouse  # Import pynput for mouse tracking
 
 console = Console()
-
 CONFIG_FILE = Path("config.json")
 LOG_FILE = Path("switch_log.txt")
 
@@ -67,34 +66,25 @@ def log_switch(title, skip_log):
         with open(LOG_FILE, "a") as f:
             f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Switched to: {title}\n")
 
-class CursorTracker:
-    def __init__(self):
-        self.last_mouse_position = None
-        self.cursor_moved = False
+def get_cursor_position():
+    """Returns the current mouse cursor position on macOS using pyobjc."""
+    Quartz = objc.loadBundle("Quartz", globals(), bundle_path="/System/Library/Frameworks/Quartz.framework")
+    loc = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+    return (int(loc.x), int(loc.y))
 
-    def on_move(self, x, y):
-        """Callback function when mouse moves."""
-        if self.last_mouse_position and (self.last_mouse_position[0] != x or self.last_mouse_position[1] != y):
-            self.cursor_moved = True
-        self.last_mouse_position = (x, y)
+def is_cursor_moving(duration=2):
+    """Checks if the mouse cursor has moved in the last `duration` seconds."""
+    old_pos = get_cursor_position()
+    time.sleep(duration)
+    new_pos = get_cursor_position()
+    return old_pos != new_pos
 
 def activate_window(title, skip_log):
     """Attempts to activate a window using AppleScript with a fallback method."""
-    console.print("[cyan]Tracking cursor movement for 2 seconds...[/cyan]")
     
-    cursor_tracker = CursorTracker()
-    listener = mouse.Listener(on_move=cursor_tracker.on_move)
-    listener.start()
-    
-    # Wait for 2 seconds to monitor cursor movement
-    time.sleep(2)
-    listener.stop()
-    
-    if cursor_tracker.cursor_moved:
-        console.print("[red]Cursor movement detected, skipping switch.[/red]")
+    if is_cursor_moving():
+        console.print(f"[yellow]Cursor is moving. Skipping switch to {title}.[/yellow]")
         return False
-    else:
-        console.print("[green]No cursor movement detected, proceeding with application switch.[/green]")
 
     script = f'''
     tell application "{title}"
@@ -164,7 +154,7 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
             last_window = title  # Update last switched window
 
             delay = random.randint(delay_min, delay_max)
-            console.print(f"[blue]Pausing for {delay} seconds before next switch...[/blue]")
+            console.print(f"[blue]Pausing for {delay} seconds before switch...[/blue]")
             time.sleep(delay)
 
         delay = random.randint(10, 60)
