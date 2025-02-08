@@ -90,15 +90,15 @@ def get_cursor_position():
 
 def is_cursor_moving():
     """
-    Check if the cursor has moved during a 2-second period.
+    Check if the cursor has moved during a 10-second period.
     Samples the cursor position every 0.1 seconds.
     """
     initial_pos = get_cursor_position()
-    for _ in range(20):  # 20 iterations * 0.1 sec = 2 seconds
+    for _ in range(random.randint(10, 30)*10):  # 20 iterations * 0.1 sec = 2 seconds
         time.sleep(0.1)
         new_pos = get_cursor_position()
         if new_pos != initial_pos:
-            log_print("[yellow]Cursor is moving, skipping script execution.[/yellow]")
+            log_print("[blue]Cursor is moving, skipping app.[/blue]")
             return True
     log_print("[green]Cursor is idle, proceeding...[/green]")
     return False
@@ -139,8 +139,8 @@ def monitor_keyboard():
     Quartz.CFRunLoopRun()
 
 def is_typing():
-    """Return True if a key event occurred in the last 2 seconds."""
-    return (time.time() - last_keypress_time) < 2
+    """Return True if a key event occurred in the last 10 seconds."""
+    return (time.time() - last_keypress_time) < random.randint(10, 30)
 
 def activate_window(title, skip_log):
     """
@@ -151,7 +151,7 @@ def activate_window(title, skip_log):
     if is_cursor_moving():
         return
     if is_typing():
-        log_print("[yellow]Typing detected, skipping script execution.[/yellow]")
+        log_print("[blue]Typing detected, skipping script execution.[/blue]")
         return
     
     
@@ -177,7 +177,7 @@ def activate_window(title, skip_log):
     try:
         result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
         if "App Not Found" in result.stdout:
-            log_print(f"[yellow]Skipping {title}: Application not running.[/yellow]")
+            log_print(f"[blue]Skipping {title}: Application not running.[/blue]")
             return False
         log_print(f"[green]Switched to: {title}[/green]")
         log_switch(title, skip_log)
@@ -229,7 +229,7 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
             last_window = title
 
             delay = random.randint(delay_min, delay_max)
-            log_print(f"[blue]Pausing for {delay} seconds before next switch...[/blue]")
+            log_print(f"[yellow]Pausing before next switch...[/yellow]")
             time.sleep(delay)
 
         delay = random.randint(10, 60)
@@ -242,8 +242,8 @@ if __name__ == "__main__":
     threading.Thread(target=monitor_keyboard, daemon=True).start()
 
     parser = argparse.ArgumentParser(description="Cycle through active windows.")
-    parser.add_argument("--min-delay", type=int, default=5, help="Minimum delay between switches (seconds)")
-    parser.add_argument("--max-delay", type=int, default=10, help="Maximum delay between switches (seconds)")
+    parser.add_argument("--min-delay", type=int, default=0, help="Minimum delay between switches (seconds)")
+    parser.add_argument("--max-delay", type=int, default=3, help="Maximum delay between switches (seconds)")
     parser.add_argument("--apps", nargs="*", help="List of specific apps to cycle through (optional)")
     parser.add_argument("--skip-log", action="store_true", help="Disable logging for this session")
     args = parser.parse_args()
