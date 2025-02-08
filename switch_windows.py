@@ -75,22 +75,15 @@ def activate_window(title, skip_log):
     tell application "System Events"
         tell process "{title}"
             set frontmost to true
+            try
+                perform action "AXRaise" of (windows whose value of attribute "AXMinimized" is true)
+            end try
         end tell
+        
+        delay 0.01
+        key code 48 using {{command down}}
     end tell
     '''
-    # script = f'''
-    # tell application "System Events"
-    #     set appList to name of every process
-    #     if "{title}" is in appList then
-    #         tell application "{title}" to activate
-    #         tell process "{title}"
-    #             set frontmost to true
-    #         end tell
-    #     else
-    #         return "App Not Found"
-    #     end if
-    # end tell
-    # '''
 
     try:
         result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
