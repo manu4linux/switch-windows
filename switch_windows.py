@@ -14,16 +14,29 @@ from rich.table import Table
 import Quartz
 from Quartz import CoreGraphics
 
+# Initialize Rich console
 console = Console()
 
+# Global flag to control terminal logging; will be set from config.json
+BACKGROUND_MODE = False
+
+# Configuration and log file paths
 CONFIG_FILE = Path("config.json")
 LOG_FILE = Path("switch_log.txt")
 
-# Default configuration
+# Default configuration (now includes the background_mode option)
 DEFAULT_CONFIG = {
     "ignored_keywords": ["Window Server", "StatusIndicator", "Menubar", "Dock", "Control Center"],
-    "enable_logging": True
+    "enable_logging": True,
+    "background_mode": False
 }
+
+def log_print(*args, **kwargs):
+    """
+    Print to terminal only if not in background mode.
+    """
+    if not BACKGROUND_MODE:
+        console.print(*args, **kwargs)
 
 def load_config():
     """Load configuration from config.json or return default configuration."""
@@ -32,10 +45,13 @@ def load_config():
             with open(CONFIG_FILE, "r") as f:
                 return json.load(f)
         except Exception as e:
-            console.print(f"[red]Failed to load config.json: {e}[/red]")
+            log_print(f"[red]Failed to load config.json: {e}[/red]")
     return DEFAULT_CONFIG
 
 CONFIG = load_config()
+
+# Set BACKGROUND_MODE from configuration
+BACKGROUND_MODE = CONFIG.get("background_mode", DEFAULT_CONFIG["background_mode"])
 
 def get_cpu_usage(process_name):
     """Return the CPU usage percentage for a given process."""
@@ -48,7 +64,7 @@ def get_cpu_usage(process_name):
     return 0.0
 
 def list_active_windows():
-    """Return a dictionary of active window titles with CPU usage."""
+    """Return a dictionary of active window titles with their CPU usage."""
     titles = gw.getAllTitles()
     ignored_keywords = CONFIG.get("ignored_keywords", DEFAULT_CONFIG["ignored_keywords"])
     
@@ -74,31 +90,35 @@ def get_cursor_position():
     return int(loc.x), int(loc.y)
 
 def is_cursor_moving():
-    """Check if the cursor has moved during a 2-second period."""
+    """
+    Check if the cursor has moved during a 2-second period.
+    Samples the cursor position every 0.1 seconds.
+    """
     initial_pos = get_cursor_position()
-    for _ in range(20):  # 20 iterations x 0.1 sec = 2 seconds
+    for _ in range(20):  # 20 iterations * 0.1 sec = 2 seconds
         time.sleep(0.1)
         new_pos = get_cursor_position()
         if new_pos != initial_pos:
-            console.print("[yellow]Cursor is moving, skipping script execution.[/yellow]")
+            log_print("[yellow]Cursor is moving, skipping script execution.[/yellow]")
             return True
-    console.print("[green]Cursor is idle, proceeding...[/green]")
+    log_print("[green]Cursor is idle, proceeding...[/green]")
     return False
 
 # Global variable to track the last keypress time
 last_keypress_time = time.time()
 
 def keyboard_callback(proxy, event_type, event, refcon):
-    """Callback function invoked on key events."""
+    """Callback function invoked on key events to update last keypress time."""
     global last_keypress_time
-    # Update timestamp when a key is pressed or modifier flags change
     if event_type in [CoreGraphics.kCGEventKeyDown, CoreGraphics.kCGEventFlagsChanged]:
         last_keypress_time = time.time()
     return event
 
 def monitor_keyboard():
-    """Set up a keyboard event listener to track typing."""
-    # Create an event mask for key down and flags-changed events
+    """
+    Set up a keyboard event listener to track typing.
+    This function runs in its own run loop.
+    """
     event_mask = (1 << CoreGraphics.kCGEventKeyDown) | (1 << CoreGraphics.kCGEventFlagsChanged)
     tap = Quartz.CGEventTapCreate(
         Quartz.kCGSessionEventTap,
@@ -110,13 +130,13 @@ def monitor_keyboard():
     )
     
     if not tap:
-        console.print("[red]Failed to create keyboard event listener.[/red]")
+        log_print("[red]Failed to create keyboard event listener.[/red]")
         return
 
     run_loop_source = Quartz.CFMachPortCreateRunLoopSource(None, tap, 0)
     Quartz.CFRunLoopAddSource(Quartz.CFRunLoopGetCurrent(), run_loop_source, Quartz.kCFRunLoopCommonModes)
     Quartz.CGEventTapEnable(tap, True)
-    console.print("[blue]Keyboard monitoring started.[/blue]")
+    log_print("[blue]Keyboard monitoring started.[/blue]")
     Quartz.CFRunLoopRun()
 
 def is_typing():
@@ -124,11 +144,15 @@ def is_typing():
     return (time.time() - last_keypress_time) < 2
 
 def activate_window(title, skip_log):
-    """Activate a window using AppleScript, but only if the cursor is idle and no typing occurred recently."""
+    """
+    Activate a window using AppleScript.
+    Only performs the activation if both the mouse cursor is idle
+    and no typing has occurred in the last 2 seconds.
+    """
     if is_cursor_moving():
         return
     if is_typing():
-        console.print("[yellow]Typing detected, skipping script execution.[/yellow]")
+        log_print("[yellow]Typing detected, skipping script execution.[/yellow]")
         return
 
     script = f'''
@@ -151,54 +175,57 @@ def activate_window(title, skip_log):
     try:
         result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
         if "App Not Found" in result.stdout:
-            console.print(f"[yellow]Skipping {title}: Application not running.[/yellow]")
+            log_print(f"[yellow]Skipping {title}: Application not running.[/yellow]")
             return False
-        console.print(f"[green]Switched to: {title}[/green]")
+        log_print(f"[green]Switched to: {title}[/green]")
         log_switch(title, skip_log)
         return True
     except subprocess.CalledProcessError:
-        console.print(f"[red]Failed to switch to: {title}, trying fallback...[/red]")
+        log_print(f"[red]Failed to switch to: {title}, trying fallback...[/red]")
         subprocess.run(["open", "-a", title])
         return False
 
 def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
-    """Cycle through active windows at random intervals."""
-    last_window = None  # Track the last switched window
+    """
+    Continuously switch between active windows at random intervals.
+    If specific apps are provided (cycle_apps), only those are considered.
+    """
+    last_window = None
     while True:
         window_data = list_active_windows()
 
         if cycle_apps:
-            # If specific apps are provided, filter to only those titles.
+            # Filter to only the specified apps.
             window_data = {title: cpu for title, cpu in window_data.items() if title in cycle_apps}
 
         if not window_data:
-            console.print("[bold red]No valid active windows found.[/bold red]")
+            log_print("[bold red]No valid active windows found.[/bold red]")
             time.sleep(10)
             continue
 
-        # Display active windows in a table
+        # Display active windows in a table (only if not in background mode)
         table = Table(title="Active Windows", show_header=True, header_style="bold cyan")
         table.add_column("Index", justify="right")
         table.add_column("Window Title", style="bold magenta")
         table.add_column("CPU Usage (%)", style="bold yellow")
         for idx, (title, cpu_usage) in enumerate(window_data.items(), start=1):
             table.add_row(str(idx), title, f"{cpu_usage:.2f}%")
-        console.print(table)
+        log_print(table)
 
         for title in window_data.keys():
             if title == last_window:
-                console.print(f"[yellow]Skipping {title} (already switched to last time).[/yellow]")
+                log_print(f"[yellow]Skipping {title} (already switched to last time).[/yellow]")
                 continue
             
             activate_window(title, skip_log)
             last_window = title
 
             delay = random.randint(delay_min, delay_max)
-            console.print(f"[blue]Pausing for {delay} seconds before next switch...[/blue]")
+            log_print(f"[blue]Pausing for {delay} seconds before next switch...[/blue]")
             time.sleep(delay)
 
         delay = random.randint(10, 60)
-        console.print(f"[green]\nPausing for {delay} seconds before restarting cycle...[/green]")
+        log_print(f"[green]\nPausing for {delay} seconds before restarting cycle...[/green]")
         time.sleep(delay)
 
 if __name__ == "__main__":
@@ -213,5 +240,5 @@ if __name__ == "__main__":
     parser.add_argument("--skip-log", action="store_true", help="Disable logging for this session")
     args = parser.parse_args()
 
-    console.print("[bold green]Starting window switcher...[/bold green]")
+    log_print("[bold green]Starting window switcher...[/bold green]")
     switch_between_windows(args.min_delay, args.max_delay, args.apps, args.skip_log)
