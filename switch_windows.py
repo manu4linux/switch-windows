@@ -68,22 +68,58 @@ def log_switch(title, skip_log):
 
 def activate_window(title, skip_log):
     """Attempts to activate a window using AppleScript with a fallback method."""
+    
     script = f'''
-    tell application "{title}"
-        activate
-    end tell
-    tell application "System Events"
-        tell process "{title}"
-            set frontmost to true
-            try
-                perform action "AXRaise" of (windows whose value of attribute "AXMinimized" is true)
-            end try
+    set cursorMoved to false
+    set lastMousePosition to {0, 0}
+
+    -- Function to check if the mouse has moved
+    on mouseMoved()
+        tell application "System Events"
+            set currentMousePosition to (get mouse location)
+            if lastMousePosition is not equal to currentMousePosition then
+                set cursorMoved to true
+            end if
+            set lastMousePosition to currentMousePosition
         end tell
-        
+    end mouseMoved
+
+    -- Monitor cursor movement for 2 seconds
+    repeat 20 times
+        mouseMoved()
+        if cursorMoved then
+            log "Cursor is moving, script will not proceed."
+            exit repeat
+        end if
+        delay 0.1
+    end repeat
+
+    if cursorMoved then
+        log "Cursor movement detected, exiting script."
+    else
+        log "No cursor movement detected, proceeding with application switch."
+
+        tell application "{title}"
+            activate
+        end tell
+
+        tell application "System Events"
+            tell process "{title}"
+                set frontmost to true
+                try
+                    perform action "AXRaise" of (windows whose value of attribute "AXMinimized" is true)
+                end try
+            end tell
+        end tell
+
         delay 0.01
-        key code 48 using {{command down}}
-    end tell
+        tell application "System Events"
+            key code 48 using {{command down}}
+        end tell
+    end if
     '''
+
+
 
     try:
         result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
