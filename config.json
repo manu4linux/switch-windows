@@ -1,5 +1,5 @@
 {
-    "ignored_keywords": ["Window Server Menubar","Window Server"],
+    "ignored_keywords": ["Window Server Menubar","Window Server","BIG-IP Edge Client","Control Center","Dock","Jamf Connect"],
     "enable_logging": false,
     "background_mode": false
 }

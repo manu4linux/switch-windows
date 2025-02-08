@@ -1,8 +1,7 @@
-2025-02-07 13:41:59 - Switched to: Microsoft Outlook
-2025-02-07 13:42:33 - Switched to: Jamf Connect
-2025-02-07 13:42:45 - Switched to: Google Chrome
-2025-02-07 13:43:05 - Switched to: BIG-IP Edge Client
-2025-02-07 13:43:20 - Switched to: iboss macOS Cloud Connector
-2025-02-07 13:45:54 - Switched to: Microsoft Outlook
-2025-02-07 13:46:31 - Switched to: Jamf Connect
-2025-02-07 13:46:48 - Switched to: Google Chrome
+2025-02-07 21:04:21 - Switched to: Microsoft Teams
+2025-02-07 21:04:28 - Switched to: Microsoft Defender
+2025-02-07 21:04:38 - Switched to: Microsoft Outlook
+2025-02-07 21:04:48 - Switched to: iboss macOS Cloud Connector
+2025-02-07 21:05:01 - Switched to: Visual Studio Code
+2025-02-07 21:05:11 - Switched to: Ghostty
+2025-02-07 21:05:20 - Switched to: Google Chrome
