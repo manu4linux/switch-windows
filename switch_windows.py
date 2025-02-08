@@ -24,7 +24,7 @@ BACKGROUND_MODE = False
 CONFIG_FILE = Path("config.json")
 LOG_FILE = Path("switch_log.txt")
 
-# Default configuration (now includes the background_mode option)
+# Default configuration (includes the background_mode option)
 DEFAULT_CONFIG = {
     "ignored_keywords": ["Window Server", "StatusIndicator", "Menubar", "Dock", "Control Center"],
     "enable_logging": True,
@@ -48,9 +48,8 @@ def load_config():
             log_print(f"[red]Failed to load config.json: {e}[/red]")
     return DEFAULT_CONFIG
 
+# Initially load config once.
 CONFIG = load_config()
-
-# Set BACKGROUND_MODE from configuration
 BACKGROUND_MODE = CONFIG.get("background_mode", DEFAULT_CONFIG["background_mode"])
 
 def get_cpu_usage(process_name):
@@ -154,7 +153,10 @@ def activate_window(title, skip_log):
     if is_typing():
         log_print("[yellow]Typing detected, skipping script execution.[/yellow]")
         return
-
+    
+    
+    # AppleScript to activate a window and raise it if minimized
+    # and then simulate Command-Tab to switch applications backgroud.
     script = f'''
     tell application "{title}"
         activate
@@ -189,9 +191,15 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
     """
     Continuously switch between active windows at random intervals.
     If specific apps are provided (cycle_apps), only those are considered.
+    Before each cycle, the config file is re-read.
     """
     last_window = None
     while True:
+        # Reload configuration each cycle
+        global CONFIG, BACKGROUND_MODE
+        CONFIG = load_config()
+        BACKGROUND_MODE = CONFIG.get("background_mode", DEFAULT_CONFIG["background_mode"])
+
         window_data = list_active_windows()
 
         if cycle_apps:
