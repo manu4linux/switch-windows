@@ -4,33 +4,32 @@ import pygetwindow as gw
 import subprocess
 import argparse
 import json
-import psutil
-import objc
-import Quartz
+import psutil  # CPU usage
 from datetime import datetime
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
+from Quartz import CoreGraphics, EventType, Quartz
 
 console = Console()
+
 CONFIG_FILE = Path("config.json")
 LOG_FILE = Path("switch_log.txt")
 
-# Default configuration
 DEFAULT_CONFIG = {
     "ignored_keywords": ["Window Server", "StatusIndicator", "Menubar", "Dock", "Control Center"],
     "enable_logging": True
 }
 
 def load_config():
-    """Loads configuration from config.json or returns defaults."""
+    """Load configuration from config.json."""
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r") as f:
                 return json.load(f)
         except Exception as e:
             console.print(f"[red]Failed to load config.json: {e}[/red]")
-    return DEFAULT_CONFIG  # Fallback to default config
+    return DEFAULT_CONFIG  
 
 CONFIG = load_config()
 
@@ -39,10 +38,10 @@ def get_cpu_usage(process_name):
     for proc in psutil.process_iter(attrs=['name', 'cpu_percent']):
         try:
             if proc.info['name'] == process_name:
-                return proc.info['cpu_percent']  # Get the CPU usage
+                return proc.info['cpu_percent']
         except psutil.NoSuchProcess:
             pass
-    return 0.0  # Return 0 if process not found
+    return 0.0
 
 def list_active_windows():
     """Returns a dictionary of active application window titles with CPU usage."""
@@ -69,28 +68,72 @@ def log_switch(title, skip_log):
 
 def get_cursor_position():
     """Returns the current cursor position as (x, y) tuple."""
-    loc = Quartz.CoreGraphics.CGEventGetLocation(Quartz.CoreGraphics.CGEventCreate(None))
+    loc = CoreGraphics.CGEventGetLocation(CoreGraphics.CGEventCreate(None))
     return int(loc.x), int(loc.y)
 
-def is_cursor_moving(duration=2):
-    """Checks if the mouse cursor has moved in the last `duration` seconds."""
+def is_cursor_moving():
+    """Detects if the cursor has moved in the last 2 seconds."""
     old_pos = get_cursor_position()
-    time.sleep(duration)
-    new_pos = get_cursor_position()
-    return old_pos != new_pos
+    time.sleep(0.1)
+    
+    for _ in range(20):  # Check for 2 seconds
+        new_pos = get_cursor_position()
+        if new_pos != old_pos:
+            console.print("[yellow]Cursor is moving, skipping script execution.[/yellow]")
+            return True
+        time.sleep(0.1)
+    
+    console.print("[green]Cursor is idle, proceeding...[/green]")
+    return False
+
+last_keypress_time = time.time()
+
+def keyboard_callback(proxy, event_type, event, refcon):
+    """Callback function to detect keyboard activity."""
+    global last_keypress_time
+    if event_type in [CoreGraphics.kCGEventKeyDown, CoreGraphics.kCGEventFlagsChanged]:
+        last_keypress_time = time.time()  # Update last keypress time
+    return event
+
+def monitor_keyboard():
+    """Starts a keyboard event listener."""
+    tap = Quartz.CGEventTapCreate(
+        Quartz.kCGSessionEventTap,
+        Quartz.kCGHeadInsertEventTap,
+        Quartz.kCGEventTapOptionListenOnly,
+        (1 << CoreGraphics.kCGEventKeyDown) | (1 << CoreGraphics.kCGEventFlagsChanged),
+        keyboard_callback,
+        None
+    )
+    
+    if not tap:
+        console.print("[red]Failed to create keyboard event listener.[/red]")
+        return
+    
+    run_loop_source = Quartz.CFMachPortCreateRunLoopSource(None, tap, 0)
+    Quartz.CFRunLoopAddSource(Quartz.CFRunLoopGetCurrent(), run_loop_source, Quartz.kCFRunLoopCommonModes)
+    Quartz.CGEventTapEnable(tap, True)
+    
+    console.print("[blue]Keyboard monitoring started.[/blue]")
+    Quartz.CFRunLoopRun()
+
+def is_typing():
+    """Checks if typing has occurred in the last 2 seconds."""
+    return (time.time() - last_keypress_time) < 2
 
 def activate_window(title, skip_log):
-    """Attempts to activate a window using AppleScript with a fallback method."""
-    
+    """Attempts to activate a window using AppleScript with additional checks."""
     if is_cursor_moving():
-        console.print(f"[yellow]Cursor is moving. Skipping switch to {title}.[/yellow]")
-        return False
+        return
+    
+    if is_typing():
+        console.print("[yellow]Typing detected, skipping script execution.[/yellow]")
+        return
 
     script = f'''
     tell application "{title}"
         activate
     end tell
-
     tell application "System Events"
         tell process "{title}"
             set frontmost to true
@@ -98,10 +141,8 @@ def activate_window(title, skip_log):
                 perform action "AXRaise" of (windows whose value of attribute "AXMinimized" is true)
             end try
         end tell
-    end tell
-
-    delay 0.01
-    tell application "System Events"
+        
+        delay 0.01
         key code 48 using {{command down}}
     end tell
     '''
@@ -116,17 +157,16 @@ def activate_window(title, skip_log):
         return True
     except subprocess.CalledProcessError:
         console.print(f"[red]Failed to switch to: {title}, trying fallback...[/red]")
-        subprocess.run(["open", "-a", title])  # Fallback method
+        subprocess.run(["open", "-a", title])  
         return False
 
 def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
     """Continuously switches between valid application windows at a random interval."""
-    last_window = None  # Track the last activated window
+    last_window = None
     while True:
         window_data = list_active_windows()
 
         if cycle_apps:
-            # If specific apps are provided, filter only those
             window_data = {title: cpu for title, cpu in window_data.items() if title in cycle_apps}
 
         if not window_data:
@@ -134,7 +174,6 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
             time.sleep(10)
             continue
 
-        # Display active windows in a table
         table = Table(title="Active Windows", show_header=True, header_style="bold cyan")
         table.add_column("Index", justify="right")
         table.add_column("Window Title", style="bold magenta")
@@ -146,12 +185,12 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
         console.print(table)
 
         for title in window_data.keys():
-            if title == last_window:  # Skip duplicate switches
+            if title == last_window:
                 console.print(f"[yellow]Skipping {title} (already switched to last time).[/yellow]")
                 continue
             
             activate_window(title, skip_log)
-            last_window = title  # Update last switched window
+            last_window = title  
 
             delay = random.randint(delay_min, delay_max)
             console.print(f"[blue]Pausing for {delay} seconds before switch...[/blue]")
@@ -162,6 +201,9 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
         time.sleep(delay)
 
 if __name__ == "__main__":
+    import threading
+    threading.Thread(target=monitor_keyboard, daemon=True).start()
+
     parser = argparse.ArgumentParser(description="Cycle through active windows.")
     parser.add_argument("--min-delay", type=int, default=5, help="Minimum delay between switches (seconds)")
     parser.add_argument("--max-delay", type=int, default=10, help="Maximum delay between switches (seconds)")
