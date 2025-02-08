@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
+from pynput import mouse  # Import pynput for mouse tracking
 
 console = Console()
 
@@ -66,60 +67,54 @@ def log_switch(title, skip_log):
         with open(LOG_FILE, "a") as f:
             f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Switched to: {title}\n")
 
+class CursorTracker:
+    def __init__(self):
+        self.last_mouse_position = None
+        self.cursor_moved = False
+
+    def on_move(self, x, y):
+        """Callback function when mouse moves."""
+        if self.last_mouse_position and (self.last_mouse_position[0] != x or self.last_mouse_position[1] != y):
+            self.cursor_moved = True
+        self.last_mouse_position = (x, y)
+
 def activate_window(title, skip_log):
     """Attempts to activate a window using AppleScript with a fallback method."""
+    console.print("[cyan]Tracking cursor movement for 2 seconds...[/cyan]")
     
+    cursor_tracker = CursorTracker()
+    listener = mouse.Listener(on_move=cursor_tracker.on_move)
+    listener.start()
+    
+    # Wait for 2 seconds to monitor cursor movement
+    time.sleep(2)
+    listener.stop()
+    
+    if cursor_tracker.cursor_moved:
+        console.print("[red]Cursor movement detected, skipping switch.[/red]")
+        return False
+    else:
+        console.print("[green]No cursor movement detected, proceeding with application switch.[/green]")
+
     script = f'''
-    set cursorMoved to false
-    set lastMousePosition to {0, 0}
+    tell application "{title}"
+        activate
+    end tell
 
-    -- Function to check if the mouse has moved
-    on mouseMoved()
-        tell application "System Events"
-            set currentMousePosition to (get mouse location)
-            if lastMousePosition is not equal to currentMousePosition then
-                set cursorMoved to true
-            end if
-            set lastMousePosition to currentMousePosition
+    tell application "System Events"
+        tell process "{title}"
+            set frontmost to true
+            try
+                perform action "AXRaise" of (windows whose value of attribute "AXMinimized" is true)
+            end try
         end tell
-    end mouseMoved
+    end tell
 
-    -- Monitor cursor movement for 2 seconds
-    repeat 20 times
-        mouseMoved()
-        if cursorMoved then
-            log "Cursor is moving, script will not proceed."
-            exit repeat
-        end if
-        delay 0.1
-    end repeat
-
-    if cursorMoved then
-        log "Cursor movement detected, exiting script."
-    else
-        log "No cursor movement detected, proceeding with application switch."
-
-        tell application "{title}"
-            activate
-        end tell
-
-        tell application "System Events"
-            tell process "{title}"
-                set frontmost to true
-                try
-                    perform action "AXRaise" of (windows whose value of attribute "AXMinimized" is true)
-                end try
-            end tell
-        end tell
-
-        delay 0.01
-        tell application "System Events"
-            key code 48 using {{command down}}
-        end tell
-    end if
+    delay 0.01
+    tell application "System Events"
+        key code 48 using {{command down}}
+    end tell
     '''
-
-
 
     try:
         result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
@@ -169,7 +164,7 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
             last_window = title  # Update last switched window
 
             delay = random.randint(delay_min, delay_max)
-            console.print(f"[blue]Pausing for {delay} seconds before switch...[/blue]")
+            console.print(f"[blue]Pausing for {delay} seconds before next switch...[/blue]")
             time.sleep(delay)
 
         delay = random.randint(10, 60)
