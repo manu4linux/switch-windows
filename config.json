@@ -1,4 +1,4 @@
 {
-    "ignored_keywords": ["Dock","iboss macOS Cloud Connector", "Microsoft Defender", "BIG-IP Edge Client", "Window Server Menubar","Control Center","Jamf Connect","Window Server"],
+    "ignored_keywords": ["Dock","Visual Studio Code","iboss macOS Cloud Connector", "Microsoft Defender", "BIG-IP Edge Client", "Window Server Menubar","Control Center","Jamf Connect","Window Server"],
     "enable_logging": false
 }

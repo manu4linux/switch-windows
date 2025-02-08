@@ -6,6 +6,7 @@ import argparse
 import json
 import psutil
 import objc
+import Quartz
 from datetime import datetime
 from pathlib import Path
 from rich.console import Console
@@ -67,10 +68,9 @@ def log_switch(title, skip_log):
             f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Switched to: {title}\n")
 
 def get_cursor_position():
-    """Returns the current mouse cursor position on macOS using pyobjc."""
-    Quartz = objc.loadBundle("Quartz", globals(), bundle_path="/System/Library/Frameworks/Quartz.framework")
-    loc = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
-    return (int(loc.x), int(loc.y))
+    """Returns the current cursor position as (x, y) tuple."""
+    loc = Quartz.CoreGraphics.CGEventGetLocation(Quartz.CoreGraphics.CGEventCreate(None))
+    return int(loc.x), int(loc.y)
 
 def is_cursor_moving(duration=2):
     """Checks if the mouse cursor has moved in the last `duration` seconds."""
