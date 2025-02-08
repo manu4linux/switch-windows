@@ -69,17 +69,9 @@ def log_switch(title, skip_log):
 def activate_window(title, skip_log):
     """Attempts to activate a window using AppleScript with a fallback method."""
     script = f'''
-    set previousApp to ""
-
-    tell application "System Events"
-        set frontApp to name of first process whose frontmost is true
-        set previousApp to frontApp
-    end tell
-
     tell application "{title}"
         activate
     end tell
-
     tell application "System Events"
         tell process "{title}"
             set frontmost to true
@@ -87,17 +79,11 @@ def activate_window(title, skip_log):
                 perform action "AXRaise" of (windows whose value of attribute "AXMinimized" is true)
             end try
         end tell
+        
+        delay 0.01
+        key code 48 using {{command down}}
     end tell
-
-    delay 0.01
-
-    if previousApp is not "" then
-        tell application previousApp
-            activate
-        end tell
-    end if
     '''
-
 
     try:
         result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
