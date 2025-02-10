@@ -22,7 +22,7 @@ BACKGROUND_MODE = False
 
 # Configuration and log file paths
 CONFIG_FILE = Path("config.json")
-LOG_FILE = Path("switch_log.txt")
+DEFAULT_LOG_FILE = Path("~/switch_log.txt").expanduser()
 
 # Default configuration (includes the background_mode option)
 DEFAULT_CONFIG = {
@@ -51,6 +51,7 @@ def load_config():
 # Initially load config once.
 CONFIG = load_config()
 BACKGROUND_MODE = CONFIG.get("background_mode", DEFAULT_CONFIG["background_mode"])
+LOG_FILE = Path(CONFIG.get("logfilepath", str(DEFAULT_LOG_FILE))).expanduser()
 
 def get_cpu_usage(process_name):
     """Return the CPU usage percentage for a given process."""
@@ -248,5 +249,5 @@ if __name__ == "__main__":
     parser.add_argument("--skip-log", action="store_true", help="Disable logging for this session")
     args = parser.parse_args()
 
-    log_print("[bold green]Starting window switcher...[/bold green]")
+    log_print(f"[green]Log file path:[/green] {LOG_FILE}")
     switch_between_windows(args.min_delay, args.max_delay, args.apps, args.skip_log)

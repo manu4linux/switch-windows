@@ -1,3 +1,5 @@
+wheel >=0.45.1
+setuptools >= 75.8
 pygetwindow>=0.0.9
 # pyobjc-framework-Quartz
 pyobjc
@@ -5,3 +7,5 @@ rich>=13.9.0
 psutil>=6.1
 pip >=25.0
 pynput >=1.7.7
+py2app >=0.28.8
+pyinstaller >=5.12.0

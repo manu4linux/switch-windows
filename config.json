@@ -1,5 +1,6 @@
 {
     "ignored_keywords": ["Window Server Menubar","Window Server","BIG-IP Edge Client","Control Center","Dock","Jamf Connect"],
     "enable_logging": false,
-    "background_mode": false
+    "background_mode": true,
+    "logfilepath": "~/switchx_log.txt"
 }
