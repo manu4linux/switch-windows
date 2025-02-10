@@ -22,7 +22,7 @@ BACKGROUND_MODE = False
 
 # Configuration and log file paths
 CONFIG_FILE = Path("config.json")
-DEFAULT_LOG_FILE = Path("~/switch_log.txt").expanduser()
+DEFAULT_LOG_FILE = "~/switch_log.txt"
 
 # Default configuration (includes the background_mode option)
 DEFAULT_CONFIG = {

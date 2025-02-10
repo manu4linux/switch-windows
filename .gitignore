@@ -2,3 +2,4 @@ build/
 dist/
 setup.py
 switch_windows.spec
+switch_windows
