@@ -159,10 +159,8 @@ def activate_window(title, skip_log):
     # AppleScript to activate a window and raise it if minimized
     # and then simulate Command-Tab to switch applications backgroud.
     script = f'''
-    tell application "{title}"
-        activate
-    end tell
     tell application "System Events"
+        tell application "{title}" to activate
         tell process "{title}"
             set frontmost to true
             try
@@ -243,8 +241,8 @@ if __name__ == "__main__":
     threading.Thread(target=monitor_keyboard, daemon=True).start()
 
     parser = argparse.ArgumentParser(description="Cycle through active windows.")
-    parser.add_argument("--min-delay", type=int, default=0, help="Minimum delay between switches (seconds)")
-    parser.add_argument("--max-delay", type=int, default=3, help="Maximum delay between switches (seconds)")
+    parser.add_argument("--min-delay", type=int, default=20, help="Minimum delay between switches (seconds)")
+    parser.add_argument("--max-delay", type=int, default=60, help="Maximum delay between switches (seconds)")
     parser.add_argument("--apps", nargs="*", help="List of specific apps to cycle through (optional)")
     parser.add_argument("--skip-log", action="store_true", help="Disable logging for this session")
     args = parser.parse_args()
