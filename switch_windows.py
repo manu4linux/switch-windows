@@ -190,7 +190,11 @@ def activate_window(title, skip_log):
 def is_within_timeslot():
     """Check if the current time falls within the allowed timeslots (24-hour format)."""
     now = datetime.now().time()
-    timeslots = CONFIG.get("timeslotsofday", [])
+    timeslots = CONFIG.get("timeslotsofday")
+    
+    # If timeslotsofday is missing, return True (always allow execution)
+    if timeslots is None:
+        return True
 
     for slot in timeslots:
         try:
