@@ -185,13 +185,32 @@ def activate_window(title, skip_log):
         log_print(f"[red]Failed to switch to: {title}, trying fallback...[/red]")
         subprocess.run(["open", "-a", title])
         return False
+    
+    
+def is_within_timeslot():
+    """Check if the current time falls within the allowed timeslots (24-hour format)."""
+    now = datetime.now().time()
+    timeslots = CONFIG.get("timeslotsofday", [])
+
+    for slot in timeslots:
+        try:
+            start_str, end_str = slot.split("-")
+            start_time = datetime.strptime(start_str, "%H:%M").time()
+            end_time = datetime.strptime(end_str, "%H:%M").time()
+            # log_print(f"[yellow]Checking timeslot: {start_time} to {end_time}[/yellow]")
+
+            if start_time <= now <= end_time:
+                log_print(f"[yellow]Active timeslot: {start_time} {end_time} [/yellow]")
+                return True
+        except ValueError:
+            log_print(f"[red]Invalid timeslot format in config: {slot}[/red]")
+
+    return False
+
+
 
 def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
-    """
-    Continuously switch between active windows at random intervals.
-    If specific apps are provided (cycle_apps), only those are considered.
-    Before each cycle, the config file is re-read.
-    """
+    """Continuously switch between active windows at random intervals, only within the configured timeslots."""
     last_window = None
     while True:
         # Reload configuration each cycle
@@ -199,25 +218,20 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
         CONFIG = load_config()
         BACKGROUND_MODE = CONFIG.get("background_mode", DEFAULT_CONFIG["background_mode"])
 
+        if not is_within_timeslot():
+            log_print("[yellow]Outside allowed timeslot, pausing execution.[/yellow]")
+            time.sleep(300)  # Check again in 5 minute
+            continue
+
         window_data = list_active_windows()
 
         if cycle_apps:
-            # Filter to only the specified apps.
             window_data = {title: cpu for title, cpu in window_data.items() if title in cycle_apps}
 
         if not window_data:
             log_print("[bold red]No valid active windows found.[/bold red]")
             time.sleep(10)
             continue
-
-        # Display active windows in a table (only if not in background mode)
-        table = Table(title="Active Windows", show_header=True, header_style="bold cyan")
-        table.add_column("Index", justify="right")
-        table.add_column("Window Title", style="bold magenta")
-        table.add_column("CPU Usage (%)", style="bold yellow")
-        for idx, (title, cpu_usage) in enumerate(window_data.items(), start=1):
-            table.add_row(str(idx), title, f"{cpu_usage:.2f}%")
-        log_print(table)
 
         for title in window_data.keys():
             if title == last_window:
@@ -234,6 +248,7 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
         delay = random.randint(10, 60)
         log_print(f"[green]\nPausing for {delay} seconds before restarting cycle...[/green]")
         time.sleep(delay)
+
 
 if __name__ == "__main__":
     # Start keyboard monitoring in a separate daemon thread
