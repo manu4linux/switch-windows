@@ -103,7 +103,6 @@ def is_cursor_moving(event, duration):
             log_print("[blue]Cursor is moving, skipping app.[/blue]")
             event.set()
             return
-    log_print("[green]Cursor is idle, proceeding...[/green]")
     # we don't set the event here, as we want to wait for typing check
 
 # Global variable to track the last keypress time
@@ -172,6 +171,8 @@ def activate_window(title, skip_log):
         log_print(f"[yellow]Cursor or typing event detected within {wsec} seconds.[/yellow]")
         return
 
+    log_print("[green]Cursor/keyboard is idle, proceeding...[/green]")
+    
     # AppleScript to activate a window and raise it if minimized
     script = f'''
     tell application "System Events"
