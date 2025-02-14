@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
+import threading
 
 # Import Quartz modules from PyObjC
 import Quartz
@@ -89,20 +90,21 @@ def get_cursor_position():
     loc = CoreGraphics.CGEventGetLocation(CoreGraphics.CGEventCreate(None))
     return int(loc.x), int(loc.y)
 
-def is_cursor_moving():
+def is_cursor_moving(event, duration):
     """
-    Check if the cursor has moved during a 10-second period.
+    Check if the cursor has moved during a given period.
     Samples the cursor position every 0.1 seconds.
     """
     initial_pos = get_cursor_position()
-    for _ in range(random.randint(10, 30)*10):  # 20 iterations * 0.1 sec = 2 seconds
+    for _ in range(int(duration * 10)):  # duration * 10 iterations * 0.1 sec = duration seconds
         time.sleep(0.1)
         new_pos = get_cursor_position()
         if new_pos != initial_pos:
             log_print("[blue]Cursor is moving, skipping app.[/blue]")
-            return True
-    log_print("[green]Cursor is idle, proceeding...[/green]")
-    return False
+            event.set()
+            return
+    #log_print("[green]Cursor is idle, proceeding...[/green]")
+    #
 
 # Global variable to track the last keypress time
 last_keypress_time = time.time()
@@ -139,9 +141,16 @@ def monitor_keyboard():
     log_print("[blue]Keyboard monitoring started.[/blue]")
     Quartz.CFRunLoopRun()
 
-def is_typing():
-    """Return True if a key event occurred in the last 10 seconds."""
-    return (time.time() - last_keypress_time) < random.randint(10, 30)
+def is_typing(event, duration):
+    """Check if a key event occurred in the last given seconds."""
+    while True:
+        if (time.time() - last_keypress_time) < duration:
+            log_print("[blue]Typing detected, skipping script execution.[/blue]")
+            event.set()
+            return
+        time.sleep(0.1)
+    #
+
 
 def activate_window(title, skip_log):
     """
@@ -149,15 +158,27 @@ def activate_window(title, skip_log):
     Only performs the activation if both the mouse cursor is idle
     and no typing has occurred in the last 2 seconds.
     """
-    if is_cursor_moving():
+    cursor_event = threading.Event()
+    typing_event = threading.Event()
+    wsec = 10
+
+    cursor_thread = threading.Thread(target=is_cursor_moving, args=(cursor_event, wsec))
+    typing_thread = threading.Thread(target=is_typing, args=(typing_event, wsec))
+
+    cursor_thread.start()
+    typing_thread.start()
+
+    cursor_event_timed_out = not cursor_event.wait(wsec)
+    typing_event_timed_out = not typing_event.wait(wsec)
+
+    if cursor_event.is_set() or typing_event.is_set():
         return
-    if is_typing():
-        log_print("[blue]Typing detected, skipping script execution.[/blue]")
-        return
+
+    if cursor_event_timed_out or typing_event_timed_out:
+        log_print(f"[yellow]No cursor or typing events in {wsec} seconds.[/yellow]")
     
-    
+
     # AppleScript to activate a window and raise it if minimized
-    # and then simulate Command-Tab to switch applications backgroud.
     script = f'''
     tell application "System Events"
         tell application "{title}" to activate
@@ -185,8 +206,7 @@ def activate_window(title, skip_log):
         log_print(f"[red]Failed to switch to: {title}, trying fallback...[/red]")
         subprocess.run(["open", "-a", title])
         return False
-    
-    
+
 def is_within_timeslot():
     """Check if the current time falls within the allowed timeslots (24-hour format)."""
     now = datetime.now().time()
@@ -210,8 +230,6 @@ def is_within_timeslot():
             log_print(f"[red]Invalid timeslot format in config: {slot}[/red]")
 
     return False
-
-
 
 def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
     """Continuously switch between active windows at random intervals, only within the configured timeslots."""
@@ -246,17 +264,15 @@ def switch_between_windows(delay_min, delay_max, cycle_apps, skip_log):
             last_window = title
 
             delay = random.randint(delay_min, delay_max)
-            log_print(f"[yellow]Pausing before next switch...[/yellow]")
+            log_print(f"[yellow]Pausing {delay} seconds before next switch...[/yellow]")
             time.sleep(delay)
 
         delay = random.randint(10, 60)
         log_print(f"[green]\nPausing for {delay} seconds before restarting cycle...[/green]")
         time.sleep(delay)
 
-
 if __name__ == "__main__":
     # Start keyboard monitoring in a separate daemon thread
-    import threading
     threading.Thread(target=monitor_keyboard, daemon=True).start()
 
     parser = argparse.ArgumentParser(description="Cycle through active windows.")

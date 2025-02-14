@@ -3,5 +3,5 @@
     "enable_logging": true,
     "background_mode": false,
     "logfilepath": "~/switchx_log.txt",
-    "timeslotsofday": ["3:30-12:55","13:00-23:50"]
+    "timeslotsofday": ["8:30-11:30","15:30-18:30"]
 }
