@@ -103,8 +103,8 @@ def is_cursor_moving(event, duration):
             log_print("[blue]Cursor is moving, skipping app.[/blue]")
             event.set()
             return
-    #log_print("[green]Cursor is idle, proceeding...[/green]")
-    #
+    log_print("[green]Cursor is idle, proceeding...[/green]")
+    # we don't set the event here, as we want to wait for typing check
 
 # Global variable to track the last keypress time
 last_keypress_time = time.time()
@@ -149,8 +149,7 @@ def is_typing(event, duration):
             event.set()
             return
         time.sleep(0.1)
-    #
-
+    # we don't set the event here, as we want to wait for cursor check
 
 def activate_window(title, skip_log):
     """
@@ -158,25 +157,20 @@ def activate_window(title, skip_log):
     Only performs the activation if both the mouse cursor is idle
     and no typing has occurred in the last 2 seconds.
     """
-    cursor_event = threading.Event()
-    typing_event = threading.Event()
-    wsec = 10
+    event = threading.Event()
+    wsec = 30
 
-    cursor_thread = threading.Thread(target=is_cursor_moving, args=(cursor_event, wsec))
-    typing_thread = threading.Thread(target=is_typing, args=(typing_event, wsec))
+    cursor_thread = threading.Thread(target=is_cursor_moving, args=(event, wsec))
+    typing_thread = threading.Thread(target=is_typing, args=(event, wsec))
 
     cursor_thread.start()
     typing_thread.start()
 
-    cursor_event_timed_out = not cursor_event.wait(wsec)
-    typing_event_timed_out = not typing_event.wait(wsec)
+    event.wait(wsec)
 
-    if cursor_event.is_set() or typing_event.is_set():
+    if event.is_set():
+        log_print(f"[yellow]Cursor or typing event detected within {wsec} seconds.[/yellow]")
         return
-
-    if cursor_event_timed_out or typing_event_timed_out:
-        log_print(f"[yellow]No cursor or typing events in {wsec} seconds.[/yellow]")
-    
 
     # AppleScript to activate a window and raise it if minimized
     script = f'''
